@@ -39,6 +39,11 @@ try {
   const files = readdirSync(migrationsDir).filter((f) => f.endsWith(".sql")).sort();
   for (const f of files) {
     const sql = readFileSync(join(migrationsDir, f), "utf8");
+    // PGLite has no Supabase `storage` schema — skip storage migrations (verified live).
+    if (/\bstorage\.(buckets|objects|foldername)\b/.test(sql)) {
+      console.log(`↷ ${f} skipped (Supabase storage schema — verify against live project)`);
+      continue;
+    }
     try {
       await db.exec(sql);
       console.log(`✓ ${f} applied`);
