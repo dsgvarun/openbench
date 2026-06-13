@@ -16,9 +16,15 @@ export interface EmployerRow {
 export function EmployerConfirmation({
   parsedEmployers,
   onConfirmed,
+  demo = false,
+  embedded = false,
 }: {
   parsedEmployers: EmployerRow[];
   onConfirmed?: () => void;
+  /** When true (no DB), skip the server action and just advance. */
+  demo?: boolean;
+  /** When embedded in the stepper, suppress the standalone success screen. */
+  embedded?: boolean;
 }) {
   const [added, setAdded] = useState<{ name: string; domain: string; is_current: boolean }[]>([]);
   const [draft, setDraft] = useState({ name: "", domain: "", is_current: false });
@@ -37,6 +43,11 @@ export function EmployerConfirmation({
 
   function submit() {
     setError(null);
+    if (demo) {
+      setDone(true);
+      onConfirmed?.();
+      return;
+    }
     startTransition(async () => {
       const res = await confirmEmployers({ addedEmployers: added });
       if (!res.ok) setError(res.error);
@@ -47,7 +58,7 @@ export function EmployerConfirmation({
     });
   }
 
-  if (done) {
+  if (done && !embedded) {
     return (
       <section className="mx-auto max-w-[640px]">
         <span className="text-xs font-semibold uppercase tracking-[0.08em] text-sage">Saved</span>

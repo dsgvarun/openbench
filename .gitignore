@@ -29,3 +29,6 @@ next-env.d.ts
 .vscode/*
 !.vscode/extensions.json
 .idea
+
+# claude code — keep launch.json (shared preview config), ignore local settings
+.claude/settings.local.json
