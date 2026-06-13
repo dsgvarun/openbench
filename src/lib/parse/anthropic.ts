@@ -2,12 +2,11 @@ import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import type { LLMClient } from "./llm";
 
-// Anthropic-backed LLM client. Behind the LLMClient seam so the parse orchestrator
-// stays provider-agnostic and unit-testable with a fake.
+// OPTIONAL fallback LLM client (Claude). The default parser is the provider-agnostic
+// OpenAI-compatible client (see provider.ts) — cheaper/free. This is used only when
+// PARSE_LLM_BASE_URL is unset and ANTHROPIC_API_KEY is present. Costs more per parse.
 //
-// Model: Sonnet 4.6 by default — resume employer-extraction recall is a SAFETY metric
-// (a missed employer = exposure), so we favour quality over the cheapest model.
-// Tune via OPENBENCH_PARSE_MODEL once the recall eval (Phase 6.1) has data.
+// Model: Sonnet 4.6 by default; tune via OPENBENCH_PARSE_MODEL.
 const DEFAULT_MODEL = "claude-sonnet-4-6";
 
 export class AnthropicLLMClient implements LLMClient {

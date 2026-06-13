@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { extractResumeText } from "@/lib/parse/extract";
 import { parseResume } from "@/lib/parse";
-import { AnthropicLLMClient } from "@/lib/parse/anthropic";
+import { getParseClient } from "@/lib/parse/provider";
 import { evaluatePublish, type PublishState } from "./publish-gate";
 
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB (PRD §6.1)
@@ -92,10 +92,15 @@ export async function runParse(resumeId: string): Promise<Result<{ manualRequire
     return { ok: true, data: { manualRequired: true, reason: "no_text_extracted" } };
   }
 
-  // TODO(key): requires ANTHROPIC_API_KEY. Until set, this throws → caught → manual entry.
+  // Provider-agnostic: cheap/free hosted model, local Ollama, or none. No provider
+  // configured → manual employer entry ($0, zero keys). Parsing only pre-fills.
+  const client = await getParseClient();
+  if (!client) {
+    return { ok: true, data: { manualRequired: true, reason: "parser_disabled" } };
+  }
   let parsed;
   try {
-    parsed = await parseResume(text, new AnthropicLLMClient());
+    parsed = await parseResume(text, client);
   } catch {
     return { ok: true, data: { manualRequired: true, reason: "parser_unavailable" } };
   }
