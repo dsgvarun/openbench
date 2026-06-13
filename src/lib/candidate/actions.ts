@@ -264,3 +264,27 @@ export async function publishProfile(): Promise<Result<{ blockers: string[] }>> 
 
   return { ok: true, data: { blockers: [] } };
 }
+
+// DPDP scoped deletion (Phase 6.2): purge candidate-side data on OpenBench + delete the
+// stored resume files. Data already disclosed via an accepted reveal is held by that
+// company under their own retention — the candidate is told this at accept and here.
+export async function deleteAccount(): Promise<Result> {
+  const cand = await ensureCandidate();
+  if (!cand) return { ok: false, error: "Not signed in." };
+  const supabase = await createClient();
+
+  // 1. Delete stored resume files (owner-scoped folder).
+  const { data: files } = await supabase.storage.from("resumes").list(cand.userId);
+  if (files?.length) {
+    await supabase.storage.from("resumes").remove(files.map((f) => `${cand.userId}/${f.name}`));
+  }
+
+  // 2. Scoped DB purge (wipes rows, scrubs identity, logs deletion consent).
+  const { data, error } = await supabase.rpc("purge_candidate");
+  if (error) return { ok: false, error: error.message };
+  const res = data as { ok: boolean; error?: string };
+  if (!res.ok) return { ok: false, error: res.error ?? "Could not delete." };
+
+  await supabase.auth.signOut();
+  return { ok: true };
+}

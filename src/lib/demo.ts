@@ -75,6 +75,20 @@ export const DEMO_CARDS: DemoCard[] = [
   },
 ];
 
+export interface DemoCompany {
+  id: string;
+  legal_name: string;
+  domain: string;
+  seat_email: string;
+  requested: string;
+}
+
+export const DEMO_PENDING_COMPANIES: DemoCompany[] = [
+  { id: "co1", legal_name: "Acme Fintech Pvt Ltd", domain: "acmefintech.com", seat_email: "priya@acmefintech.com", requested: "3 hours ago" },
+  { id: "co2", legal_name: "Northwind Commerce", domain: "northwind.in", seat_email: "rahul@northwind.in", requested: "1 day ago" },
+  { id: "co3", legal_name: "Lumen Health", domain: "lumenhealth.co", seat_email: "ops@lumenhealth.co", requested: "2 days ago" },
+];
+
 export const DEMO_REQUESTS: DemoRequest[] = [
   {
     id: "r1",
