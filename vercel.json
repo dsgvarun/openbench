@@ -1,8 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "crons": [
-    { "path": "/api/jobs/intro-emails", "schedule": "*/5 * * * *" },
+    { "path": "/api/jobs/intro-emails", "schedule": "0 9 * * *" },
     { "path": "/api/jobs/expire-interests", "schedule": "0 2 * * *" },
-    { "path": "/api/jobs/stat-snapshot", "schedule": "0 * * * *" }
+    { "path": "/api/jobs/stat-snapshot", "schedule": "0 3 * * *" }
   ]
 }
