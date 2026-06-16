@@ -32,3 +32,4 @@ next-env.d.ts
 
 # claude code — keep launch.json (shared preview config), ignore local settings
 .claude/settings.local.json
+.vercel
