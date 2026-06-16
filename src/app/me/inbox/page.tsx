@@ -21,7 +21,10 @@ export default async function Inbox() {
         <Link href="/" className="font-display text-[22px] font-semibold">
           Open<span className="text-sage">Bench</span>
         </Link>
-        <Link href="/me/onboarding" className="text-sm font-semibold text-sage">Edit profile →</Link>
+        <div className="flex items-center gap-5 text-sm">
+          <Link href="/me/onboarding" className="font-semibold text-sage">Edit profile</Link>
+          <Link href="/me/settings" className="font-semibold text-sage">Settings</Link>
+        </div>
       </header>
       <div className="py-10">
         <h1 className="mb-1 text-4xl">Your interest inbox</h1>

@@ -53,3 +53,11 @@ export async function declineInterest(interestId: string, reason?: string): Prom
   if (error) return { ok: false, error: error.message };
   return data as RpcResult;
 }
+
+// Employer marks the outcome of one of their reveals (Phase 7c) — feeds placement metrics.
+export async function setRevealOutcome(revealId: string, outcome: "in_process" | "hired" | "passed"): Promise<RpcResult> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("set_reveal_outcome", { p_reveal: revealId, p_outcome: outcome });
+  if (error) return { ok: false, error: error.message };
+  return data as RpcResult;
+}

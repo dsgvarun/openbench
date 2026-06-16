@@ -1,35 +1,39 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { CandidateGrid } from "@/components/employer/CandidateGrid";
+import { CandidateGrid, type GridListing } from "@/components/employer/CandidateGrid";
+import { getMyCompany } from "@/lib/employer/listing-actions";
 import { DEMO_CARDS } from "@/lib/demo";
 
-// Employer search / drill-through. With a verified seat it calls search_profiles();
-// otherwise demo cards so the flow is clickable.
+// Employer search / drill-through. Approved seats get real candidates + their own open
+// listings to attach interest to; otherwise demo cards so the flow is clickable.
 export default async function Search() {
   let demo = true;
   let cards = DEMO_CARDS;
+  let listings: GridListing[] = [];
+
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      const { data: seat } = await supabase.from("seat").select("company_id").eq("user_id", user.id).maybeSingle();
-      if (seat) {
-        const { data } = await supabase.rpc("search_profiles", { filters: {}, lim: 20, off: 0 });
-        if (Array.isArray(data) && data.length) {
-          demo = false;
-          // Map projected cards → the grid's shape (real cards omit demo-only fields).
-          cards = data.map((c: Record<string, unknown>) => ({
-            candidate_id: String(c.candidate_id),
-            headline: (c.headline as string) ?? "Candidate",
-            seniority: (c.seniority as string) ?? "",
-            cities: (c.cities as string[]) ?? [],
-            expected_band: (c.expected_band as DemoBand) ?? "b25_40",
-            availability: (c.availability as string) ?? "",
-            skills: ((c.skills as string[]) ?? []),
-            industries: [],
-            employers_hidden: !(c.revealed as boolean),
-          }));
-        }
+      const company = await getMyCompany();
+      if (company?.status === "approved") {
+        demo = false;
+        const [{ data: results }, { data: openListings }] = await Promise.all([
+          supabase.rpc("search_profiles", { filters: {}, lim: 20, off: 0 }),
+          supabase.from("job_listing").select("id, title, ctc_band, city").eq("company_id", company.companyId).eq("status", "open").order("created_at", { ascending: false }),
+        ]);
+        cards = (Array.isArray(results) ? results : []).map((c: Record<string, unknown>) => ({
+          candidate_id: String(c.candidate_id),
+          headline: (c.headline as string) ?? "Candidate",
+          seniority: (c.seniority as string) ?? "",
+          cities: (c.cities as string[]) ?? [],
+          expected_band: (c.expected_band as GridListing["ctc_band"]) ?? "b25_40",
+          availability: (c.availability as string) ?? "",
+          skills: (c.skills as string[]) ?? [],
+          industries: [],
+          employers_hidden: !(c.revealed as boolean),
+        }));
+        listings = (openListings ?? []) as GridListing[];
       }
     }
   } catch {
@@ -47,10 +51,8 @@ export default async function Search() {
       <div className="py-10">
         <h1 className="mb-1 text-4xl">Candidates</h1>
         <p className="mb-8 text-n1">Everyone here is genuinely available, with terms declared upfront.</p>
-        <CandidateGrid cards={cards} demo={demo} />
+        <CandidateGrid cards={cards} demo={demo} listings={listings} />
       </div>
     </main>
   );
 }
-
-type DemoBand = (typeof DEMO_CARDS)[number]["expected_band"];

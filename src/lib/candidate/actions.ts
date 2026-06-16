@@ -270,6 +270,16 @@ export async function publishProfile(): Promise<Result<{ blockers: string[] }>> 
   return { ok: true, data: { blockers: [] } };
 }
 
+// Candidate status: pause (hide from search), resume (active), or mark placed.
+export async function setCandidateStatus(status: "active" | "paused" | "placed"): Promise<Result> {
+  const cand = await ensureCandidate();
+  if (!cand) return { ok: false, error: "Not signed in." };
+  const supabase = await createClient();
+  const { error } = await supabase.from("candidate").update({ status }).eq("id", cand.id);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
 // DPDP scoped deletion (Phase 6.2): purge candidate-side data on OpenBench + delete the
 // stored resume files. Data already disclosed via an accepted reveal is held by that
 // company under their own retention — the candidate is told this at accept and here.

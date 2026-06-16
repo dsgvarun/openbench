@@ -1,17 +1,25 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { BAND_LABEL, CTC_BANDS, type CtcBand } from "@/lib/bands";
 import type { DemoCard } from "@/lib/demo";
+import { sendInterest } from "@/lib/reveal/actions";
+
+export interface GridListing { id: string; title: string; ctc_band: CtcBand; city: string | null }
 
 // Employer search results: hidden-by-default candidate cards + send-interest flow.
-// In demo mode the send is a local confirmation; with a DB it calls sendInterest().
-export function CandidateGrid({ cards, demo }: { cards: DemoCard[]; demo: boolean }) {
+// In demo mode the send is a local confirmation; with a DB it calls sendInterest()
+// attaching one of the company's real open listings.
+export function CandidateGrid({ cards, demo, listings = [] }: { cards: DemoCard[]; demo: boolean; listings?: GridListing[] }) {
   const [fn, setFn] = useState("");
   const [band, setBand] = useState("");
   const [city, setCity] = useState("");
   const [target, setTarget] = useState<DemoCard | null>(null);
   const [sentTo, setSentTo] = useState<string[]>([]);
+  const [listingId, setListingId] = useState("");
+  const [note, setNote] = useState("");
+  const [sendErr, setSendErr] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
 
   const filtered = useMemo(
     () =>
@@ -87,22 +95,52 @@ export function CandidateGrid({ cards, demo }: { cards: DemoCard[]; demo: boolea
           <div className="w-full max-w-[460px] rounded-lg border border-n4 bg-white p-6 shadow-[var(--shadow-soft)]" onClick={(e) => e.stopPropagation()}>
             <h3 className="mb-1 text-2xl">Send interest</h3>
             <p className="mb-4 text-sm text-n1">Attach one of your open roles and a short note. They&apos;ll see your company and the role — and decide whether to reveal.</p>
-            <label className="mb-1 block text-sm font-semibold">Attach a role</label>
-            <select className="mb-3 w-full rounded-md border border-n3 bg-paper px-3 py-2 text-[15px]">
-              <option>Senior PM, Payments · ₹25–40L · Mumbai</option>
-              <option>Group PM, Platform · ₹40–60L · Remote</option>
-            </select>
-            <label className="mb-1 block text-sm font-semibold">Note (max 300 chars)</label>
-            <textarea maxLength={300} rows={3} className="mb-4 w-full rounded-md border border-n3 bg-paper px-3 py-2 text-[15px]" placeholder="Why this role fits them…" />
-            <div className="flex gap-2">
-              <button
-                onClick={() => { setSentTo((a) => [...a, target.candidate_id]); setTarget(null); }}
-                className="rounded-md bg-sage px-5 py-2.5 text-[15px] font-semibold text-white"
-              >
-                {demo ? "Send (demo)" : "Send interest"}
-              </button>
-              <button onClick={() => setTarget(null)} className="rounded-md border border-n3 px-4 py-2.5 text-[15px] font-semibold">Cancel</button>
-            </div>
+
+            {!demo && listings.length === 0 ? (
+              <div className="rounded-md border border-n4 bg-paper p-4 text-sm text-n1">
+                You need an open role first. <a href="/hire/listings" className="font-semibold text-sage">Post a role →</a>
+              </div>
+            ) : (
+              <>
+                <label className="mb-1 block text-sm font-semibold">Attach a role</label>
+                <select value={listingId} onChange={(e) => setListingId(e.target.value)} className="mb-3 w-full rounded-md border border-n3 bg-paper px-3 py-2 text-[15px]">
+                  {demo ? (
+                    <>
+                      <option value="demo-1">Senior PM, Payments · ₹25–40L · Mumbai</option>
+                      <option value="demo-2">Group PM, Platform · ₹40–60L · Remote</option>
+                    </>
+                  ) : (
+                    listings.map((l) => (
+                      <option key={l.id} value={l.id}>{l.title} · {BAND_LABEL[l.ctc_band]} · {l.city || "—"}</option>
+                    ))
+                  )}
+                </select>
+                <label className="mb-1 block text-sm font-semibold">Note (max 300 chars)</label>
+                <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} rows={3} className="mb-2 w-full rounded-md border border-n3 bg-paper px-3 py-2 text-[15px]" placeholder="Why this role fits them…" />
+                {sendErr && <p className="mb-2 text-sm text-error">{sendErr}</p>}
+                <div className="flex gap-2">
+                  <button
+                    disabled={pending}
+                    onClick={() => {
+                      setSendErr(null);
+                      const cand = target.candidate_id;
+                      if (demo) { setSentTo((a) => [...a, cand]); setTarget(null); return; }
+                      const chosen = listingId || listings[0]?.id;
+                      if (!chosen) { setSendErr("Pick a role."); return; }
+                      startTransition(async () => {
+                        const res = await sendInterest({ candidateId: cand, listingId: chosen, note });
+                        if (res.ok) { setSentTo((a) => [...a, cand]); setTarget(null); setNote(""); }
+                        else setSendErr(res.error ?? "Could not send.");
+                      });
+                    }}
+                    className="rounded-md bg-sage px-5 py-2.5 text-[15px] font-semibold text-white disabled:opacity-40"
+                  >
+                    {pending ? "Sending…" : demo ? "Send (demo)" : "Send interest"}
+                  </button>
+                  <button onClick={() => setTarget(null)} className="rounded-md border border-n3 px-4 py-2.5 text-[15px] font-semibold">Cancel</button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

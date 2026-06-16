@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { AdminQueue } from "@/components/admin/AdminQueue";
+import { SignOutButton } from "@/components/auth/SignOutButton";
 import { DEMO_PENDING_COMPANIES, type DemoCompany } from "@/lib/demo";
 
 // Admin: company verification queue (Phase 3.1). Real pending companies for an admin
@@ -40,7 +41,10 @@ export default async function Admin() {
         <Link href="/" className="font-display text-[22px] font-semibold">
           Open<span className="text-sage">Bench</span>
         </Link>
-        <span className="text-sm text-n1">Admin</span>
+        <div className="flex items-center gap-5 text-sm">
+          <Link href="/admin/metrics" className="font-semibold text-sage">Metrics</Link>
+          {!demo && <SignOutButton />}
+        </div>
       </header>
       <div className="py-10">
         <h1 className="mb-1 text-4xl">Verification queue</h1>
