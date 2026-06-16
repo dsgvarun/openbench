@@ -10,7 +10,7 @@ export default function ForEmployers() {
           Open<span className="text-sage">Bench</span>
         </Link>
         <Link
-          href="/hire"
+          href="/signin?next=/hire"
           className="rounded-md bg-sage px-5 py-2.5 text-[15px] font-semibold text-white"
         >
           List a role
@@ -30,7 +30,7 @@ export default function ForEmployers() {
           reach the people behind the numbers.
         </p>
         <Link
-          href="/hire"
+          href="/signin?next=/hire"
           className="rounded-md bg-sage px-5 py-2.5 text-[15px] font-semibold text-white"
         >
           Explore the index

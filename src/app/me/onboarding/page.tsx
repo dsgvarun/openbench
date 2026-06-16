@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { OnboardingStepper } from "@/components/onboarding/OnboardingStepper";
+import { SignOutButton } from "@/components/auth/SignOutButton";
 
 // Candidate onboarding: upload → confirm employers → preferences → visibility → publish.
 // Demo mode (no Supabase session) lets the whole flow be clicked through with sample
@@ -23,9 +24,12 @@ export default async function Onboarding() {
         <Link href="/" className="font-display text-[22px] font-semibold">
           Open<span className="text-sage">Bench</span>
         </Link>
-        <Link href="/me/inbox" className="text-sm font-semibold text-sage">
-          Your inbox →
-        </Link>
+        <div className="flex items-center gap-5">
+          <Link href="/me/inbox" className="text-sm font-semibold text-sage">
+            Your inbox →
+          </Link>
+          {hasSession && <SignOutButton />}
+        </div>
       </header>
       <div className="py-12">
         <OnboardingStepper demo={!hasSession} />

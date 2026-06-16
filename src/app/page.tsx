@@ -10,10 +10,10 @@ export default function Home() {
         </div>
         <nav className="hidden gap-7 text-[15px] text-n1 sm:flex">
           <Link href="/for-employers">For employers</Link>
-          <Link href="/me">For candidates</Link>
+          <Link href="/signin?next=/me/onboarding">For candidates</Link>
         </nav>
         <Link
-          href="/me"
+          href="/signin"
           className="rounded-md border border-n3 px-5 py-2.5 text-[15px] font-semibold"
         >
           Sign in
@@ -34,13 +34,13 @@ export default function Home() {
         </p>
         <div className="flex items-center gap-3.5">
           <Link
-            href="/me"
+            href="/signin?next=/me/onboarding"
             className="rounded-md bg-sage px-5 py-2.5 text-[15px] font-semibold text-white"
           >
             Create your profile
           </Link>
           <Link
-            href="/for-employers"
+            href="/signin?next=/hire"
             className="rounded-md border border-n3 px-5 py-2.5 text-[15px] font-semibold"
           >
             I&apos;m hiring
