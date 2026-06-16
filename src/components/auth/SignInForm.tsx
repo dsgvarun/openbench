@@ -9,6 +9,7 @@ export function SignInForm() {
   const router = useRouter();
   const params = useSearchParams();
   const next = params.get("next") || "/me";
+  const msg = params.get("msg");
 
   const [step, setStep] = useState<"email" | "code">("email");
   const [email, setEmail] = useState("");
@@ -23,7 +24,12 @@ export function SignInForm() {
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim().toLowerCase(),
-      options: { shouldCreateUser: true },
+      options: {
+        shouldCreateUser: true,
+        // Make the email's magic link work too (not just the code): it lands on our
+        // callback, which completes the session. Must be in Supabase's Redirect URLs.
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
+      },
     });
     setBusy(false);
     if (error) setError(error.message);
@@ -56,6 +62,14 @@ export function SignInForm() {
           ? "We'll email you a one-time code. No passwords."
           : `We sent a 6-digit code to ${email}. Enter it below.`}
       </p>
+
+      {msg && step === "email" && (
+        <p className="mb-5 rounded-md border-l-[3px] border-clay bg-clay-soft px-3 py-2 text-sm">
+          {msg === "link_expired"
+            ? "That email link expired. Enter your email for a fresh code."
+            : "Couldn't complete that sign-in link. Enter your email to try again."}
+        </p>
+      )}
 
       {step === "email" ? (
         <form onSubmit={requestCode} className="space-y-4">
