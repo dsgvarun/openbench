@@ -38,20 +38,24 @@ export async function registerCompany(input: {
   if (emailDomain !== domain) return { ok: false, error: `Your work email must be @${domain}.` };
   if (FREE_MAIL.has(emailDomain)) return { ok: false, error: "Use your work email, not a free email provider." };
 
-  // Company starts pending; an admin approves before the index unlocks.
-  const { data: company, error: cErr } = await supabase
-    .from("company")
-    .insert({ legal_name: input.legalName.trim(), domain, verification_status: "pending" })
-    .select("id")
-    .single();
-  if (cErr || !company) return { ok: false, error: cErr?.message ?? "Could not create the company." };
-
-  const { error: sErr } = await supabase
-    .from("seat")
-    .insert({ company_id: company.id, user_id: user.id, email: input.workEmail.trim().toLowerCase(), role: input.role });
-  if (sErr) return { ok: false, error: sErr.message };
-
-  return { ok: true, data: { companyId: company.id as string } };
+  // Create company (pending) + seat atomically via SECURITY DEFINER RPC.
+  const { data, error } = await supabase.rpc("register_company", {
+    p_legal_name: input.legalName.trim(),
+    p_domain: domain,
+    p_work_email: input.workEmail.trim().toLowerCase(),
+    p_role: input.role ?? null,
+  });
+  if (error) return { ok: false, error: error.message };
+  const res = data as { ok: boolean; error?: string; company_id?: string };
+  if (!res.ok) {
+    const msg: Record<string, string> = {
+      not_signed_in: "Sign in first.",
+      already_registered: "You're already linked to a company.",
+      domain_exists: "A company with this domain is already registered. Ask a colleague to add you.",
+    };
+    return { ok: false, error: msg[res.error ?? ""] ?? "Could not register the company." };
+  }
+  return { ok: true, data: { companyId: res.company_id! } };
 }
 
 // Admin-only (RLS company_admin_update gates this to app_admin members).
