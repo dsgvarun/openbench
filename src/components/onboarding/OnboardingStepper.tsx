@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { EmployerConfirmation } from "./EmployerConfirmation";
+import { useState, useTransition } from "react";
+import { EmployerConfirmation, type EmployerRow } from "./EmployerConfirmation";
 import { DEMO_PARSED_EMPLOYERS } from "@/lib/demo";
 import { CTC_BANDS, BAND_LABEL, type CtcBand } from "@/lib/bands";
+import { uploadResume, runParse } from "@/lib/candidate/actions";
 
 const STEPS = ["Upload", "Employers", "Preferences", "Visibility", "Publish"] as const;
 
@@ -55,6 +56,36 @@ export function OnboardingStepper({ demo }: { demo: boolean }) {
   const [revealed, setRevealed] = useState<string[]>([]);
   const [published, setPublished] = useState(false);
 
+  // real upload → parse (signed-in mode)
+  const [file, setFile] = useState<File | null>(null);
+  const [realEmployers, setRealEmployers] = useState<EmployerRow[]>([]);
+  const [uploadBusy, startUpload] = useTransition();
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  function handleUpload() {
+    if (!file) {
+      setUploadError("Choose a resume file first.");
+      return;
+    }
+    setUploadError(null);
+    startUpload(async () => {
+      const fd = new FormData();
+      fd.append("file", file);
+      const up = await uploadResume(fd);
+      if (!up.ok) {
+        setUploadError(up.error);
+        return;
+      }
+      const parsed = await runParse(up.data!.resumeId);
+      if (!parsed.ok) {
+        setUploadError(parsed.error);
+        return;
+      }
+      setRealEmployers(parsed.data!.employers);
+      next();
+    });
+  }
+
   return (
     <div className="mx-auto max-w-[680px]">
       {/* progress */}
@@ -85,13 +116,23 @@ export function OnboardingStepper({ demo }: { demo: boolean }) {
           <h2 className="mb-2 text-3xl">Upload your resume</h2>
           <p className="mb-5 text-n1">PDF, DOCX, or TXT, up to 10 MB. We read it once to pre-fill your profile — it&apos;s never shown to anyone until you accept a reveal.</p>
           <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-n3 bg-white px-6 py-12 text-center">
-            <span className="font-medium">Drop your resume here, or click to choose</span>
+            <span className="font-medium">{file ? file.name : "Drop your resume here, or click to choose"}</span>
             <span className="mt-1 text-sm text-n2">We&apos;ll extract your employers and skills</span>
-            <input type="file" className="hidden" accept=".pdf,.docx,.txt" />
+            <input
+              type="file"
+              className="hidden"
+              accept=".pdf,.docx,.txt"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            />
           </label>
+          {uploadError && <p className="mt-3 text-sm text-error">{uploadError}</p>}
           <div className="mt-6">
-            <button onClick={next} className="rounded-md bg-sage px-5 py-2.5 text-[15px] font-semibold text-white">
-              {demo ? "Continue with sample resume" : "Upload & parse"}
+            <button
+              onClick={demo ? next : handleUpload}
+              disabled={uploadBusy}
+              className="rounded-md bg-sage px-5 py-2.5 text-[15px] font-semibold text-white disabled:opacity-40"
+            >
+              {demo ? "Continue with sample resume" : uploadBusy ? "Reading your resume…" : "Upload & parse"}
             </button>
           </div>
         </section>
@@ -99,7 +140,7 @@ export function OnboardingStepper({ demo }: { demo: boolean }) {
 
       {step === 1 && (
         <EmployerConfirmation
-          parsedEmployers={demo ? DEMO_PARSED_EMPLOYERS : []}
+          parsedEmployers={demo ? DEMO_PARSED_EMPLOYERS : realEmployers}
           demo={demo}
           embedded
           onConfirmed={next}

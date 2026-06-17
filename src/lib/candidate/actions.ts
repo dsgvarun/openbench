@@ -68,7 +68,11 @@ export async function uploadResume(formData: FormData): Promise<Result<{ resumeI
 
 // 2.2 — extract text + parse + persist. On any failure, leaves the candidate in a
 // "manual entry" state (never a half-parsed publish). Returns whether manual is required.
-export async function runParse(resumeId: string): Promise<Result<{ manualRequired: boolean; reason?: string }>> {
+type ParsedEmployerRow = { id: string; name: string; domain: string | null; is_current: boolean };
+
+export async function runParse(
+  resumeId: string,
+): Promise<Result<{ manualRequired: boolean; reason?: string; employers: ParsedEmployerRow[] }>> {
   const cand = await ensureCandidate();
   if (!cand) return { ok: false, error: "Not signed in." };
   const supabase = await createClient();
@@ -89,26 +93,26 @@ export async function runParse(resumeId: string): Promise<Result<{ manualRequire
   const text = await extractResumeText({ bytes, mimeType: dl.data.type, fileName });
   if (!text) {
     console.warn("[runParse] no_text_extracted", { fileName, mimeType: dl.data.type, bytes: bytes.length });
-    return { ok: true, data: { manualRequired: true, reason: "no_text_extracted" } };
+    return { ok: true, data: { manualRequired: true, reason: "no_text_extracted", employers: [] } };
   }
 
   // Provider-agnostic: cheap/free hosted model, local Ollama, or none. No provider
   // configured → manual employer entry ($0, zero keys). Parsing only pre-fills.
   const client = await getParseClient();
   if (!client) {
-    return { ok: true, data: { manualRequired: true, reason: "parser_disabled" } };
+    return { ok: true, data: { manualRequired: true, reason: "parser_disabled", employers: [] } };
   }
   let parsed;
   try {
     parsed = await parseResume(text, client);
   } catch (e) {
     console.error("[runParse] parser_unavailable (LLM call threw)", e instanceof Error ? e.message : e);
-    return { ok: true, data: { manualRequired: true, reason: "parser_unavailable" } };
+    return { ok: true, data: { manualRequired: true, reason: "parser_unavailable", employers: [] } };
   }
 
   if (!parsed.ok) {
     console.warn("[runParse] parse failed:", parsed.reason, { textChars: text.length });
-    return { ok: true, data: { manualRequired: true, reason: parsed.reason } };
+    return { ok: true, data: { manualRequired: true, reason: parsed.reason, employers: [] } };
   }
   console.log("[runParse] ok", { employers: parsed.resume.employers.length, confidence: parsed.resume.confidence });
 
@@ -120,22 +124,34 @@ export async function runParse(resumeId: string): Promise<Result<{ manualRequire
 
   // Replace any prior parsed (unconfirmed) employers for a clean re-parse.
   await supabase.from("candidate_employer").delete().eq("candidate_id", cand.id).eq("from_parse", true).eq("confirmed", false);
+  let employers: ParsedEmployerRow[] = [];
   if (parsed.resume.employers.length) {
-    await supabase.from("candidate_employer").insert(
-      parsed.resume.employers.map((e, i) => ({
-        candidate_id: cand.id,
-        name: e.name,
-        domain: e.domain,
-        is_current: e.is_current,
-        display_order: i,
-        from_parse: true,
-        confirmed: false,
-        reveal_flag: false,
-      })),
-    );
+    const { data: inserted } = await supabase
+      .from("candidate_employer")
+      .insert(
+        parsed.resume.employers.map((e, i) => ({
+          candidate_id: cand.id,
+          name: e.name,
+          domain: e.domain,
+          is_current: e.is_current,
+          display_order: i,
+          from_parse: true,
+          confirmed: false,
+          reveal_flag: false,
+        })),
+      )
+      .select("id, name, domain, is_current");
+    employers = (inserted ?? []) as ParsedEmployerRow[];
   }
 
-  return { ok: true, data: { manualRequired: parsed.lowConfidence, reason: parsed.lowConfidence ? "low_confidence" : undefined } };
+  return {
+    ok: true,
+    data: {
+      manualRequired: parsed.lowConfidence,
+      reason: parsed.lowConfidence ? "low_confidence" : undefined,
+      employers,
+    },
+  };
 }
 
 // 2.3 — the fail-closed employer confirmation. Adds any candidate-supplied employers,
