@@ -34,15 +34,18 @@ export async function extractResumeText(input: ExtractInput): Promise<string | n
     }
   }
 
-  // PDF (pdf-parse v2: PDFParse class). Scanned/image-only PDFs yield no text → manual entry.
+  // PDF via unpdf — serverless-safe (bundles its own pdfjs build; works in Vercel
+  // functions where pdf-parse/pdfjs break). Scanned/image-only PDFs yield no text → manual.
   if (lower.endsWith(".pdf") || mimeType === "application/pdf") {
     try {
-      const { PDFParse } = await import("pdf-parse");
-      const parser = new PDFParse({ data: bytes });
-      const result = await parser.getText();
-      const text = (result.text ?? "").trim();
-      return text || null;
-    } catch {
+      const { extractText, getDocumentProxy } = await import("unpdf");
+      const pdf = await getDocumentProxy(bytes);
+      // mergePages: true → text is a single string.
+      const { text } = await extractText(pdf, { mergePages: true });
+      const merged = String(text).trim();
+      return merged || null;
+    } catch (e) {
+      console.error("[parse] PDF extract failed:", e instanceof Error ? e.message : e);
       return null;
     }
   }

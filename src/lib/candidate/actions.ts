@@ -88,7 +88,7 @@ export async function runParse(resumeId: string): Promise<Result<{ manualRequire
 
   const text = await extractResumeText({ bytes, mimeType: dl.data.type, fileName });
   if (!text) {
-    // Scanned/image PDF or unreadable → manual entry. Fail closed.
+    console.warn("[runParse] no_text_extracted", { fileName, mimeType: dl.data.type, bytes: bytes.length });
     return { ok: true, data: { manualRequired: true, reason: "no_text_extracted" } };
   }
 
@@ -101,13 +101,16 @@ export async function runParse(resumeId: string): Promise<Result<{ manualRequire
   let parsed;
   try {
     parsed = await parseResume(text, client);
-  } catch {
+  } catch (e) {
+    console.error("[runParse] parser_unavailable (LLM call threw)", e instanceof Error ? e.message : e);
     return { ok: true, data: { manualRequired: true, reason: "parser_unavailable" } };
   }
 
   if (!parsed.ok) {
+    console.warn("[runParse] parse failed:", parsed.reason, { textChars: text.length });
     return { ok: true, data: { manualRequired: true, reason: parsed.reason } };
   }
+  console.log("[runParse] ok", { employers: parsed.resume.employers.length, confidence: parsed.resume.confidence });
 
   // Persist parse + create UNCONFIRMED employer rows (candidate must confirm — fail closed).
   await supabase
