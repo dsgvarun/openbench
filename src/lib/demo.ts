@@ -7,6 +7,7 @@ import type { CtcBand } from "./bands";
 export interface DemoEmployer {
   id: string;
   name: string;
+  title: string | null;
   domain: string | null;
   is_current: boolean;
   tenure: string | null;
@@ -35,10 +36,12 @@ export interface DemoRequest {
 }
 
 export const DEMO_PARSED_EMPLOYERS: DemoEmployer[] = [
-  { id: "d1", name: "Razorpay", domain: "razorpay.com", is_current: true, tenure: "Mar 2023 – Current" },
-  { id: "d2", name: "Flipkart", domain: "flipkart.com", is_current: false, tenure: "2020 – 2023" },
-  { id: "d3", name: "Freshworks", domain: "freshworks.com", is_current: false, tenure: "2018 – 2020" },
+  { id: "d1", name: "Razorpay", title: "Senior Product Manager", domain: "razorpay.com", is_current: true, tenure: "Mar 2023 – Current" },
+  { id: "d2", name: "Flipkart", title: "Product Manager", domain: "flipkart.com", is_current: false, tenure: "2020 – 2023" },
+  { id: "d3", name: "Freshworks", title: "Associate PM", domain: "freshworks.com", is_current: false, tenure: "2018 – 2020" },
 ];
+
+export const DEMO_EDUCATION: string[] = ["BITS Pilani — B.E. Computer Science"];
 
 export const DEMO_CARDS: DemoCard[] = [
   {

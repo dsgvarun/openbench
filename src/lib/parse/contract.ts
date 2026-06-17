@@ -53,6 +53,7 @@ function coerceEmployers(v: unknown): ParsedEmployer[] {
     if (!name) continue;
     out.push({
       name,
+      title: typeof o.title === "string" && o.title.trim() ? o.title.trim() : null,
       domain: typeof o.domain === "string" && o.domain.trim() ? o.domain.trim().toLowerCase() : null,
       is_current: o.is_current === true,
       tenure: typeof o.tenure === "string" && o.tenure.trim() ? o.tenure.trim() : null,

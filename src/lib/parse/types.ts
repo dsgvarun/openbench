@@ -4,6 +4,8 @@
 
 export interface ParsedEmployer {
   name: string;
+  /** Role/designation held at this company, e.g. "Senior Product Manager". */
+  title: string | null;
   domain: string | null;
   is_current: boolean;
   /** Human-readable tenure, e.g. "Jul 2025 – Current" or "2019 – 2021". */

@@ -3,7 +3,7 @@ import { employerRecall, normalizeName, scoreFixtures, EMPLOYER_RECALL_GATE } fr
 import { validateParseOutput } from "./contract";
 import type { ParsedEmployer } from "./types";
 
-const emp = (name: string, is_current = false): ParsedEmployer => ({ name, domain: null, is_current, tenure: null });
+const emp = (name: string, is_current = false): ParsedEmployer => ({ name, title: null, domain: null, is_current, tenure: null });
 
 describe("employerRecall", () => {
   it("is 1.0 when all expected employers are found", () => {

@@ -6,6 +6,7 @@ import { confirmEmployers } from "@/lib/candidate/actions";
 export interface EmployerRow {
   id: string;
   name: string;
+  title: string | null;
   domain: string | null;
   is_current: boolean;
   tenure: string | null;
@@ -16,11 +17,14 @@ export interface EmployerRow {
 // that isn't an employer (e.g. a school) and add anything we missed.
 export function EmployerConfirmation({
   parsedEmployers,
+  education = [],
   onConfirmed,
   demo = false,
   embedded = false,
 }: {
   parsedEmployers: EmployerRow[];
+  /** Schools/universities parsed from the resume — shown read-only (not part of the blocklist). */
+  education?: string[];
   /** Receives the canonical confirmed list (with stable ids) for the visibility step. */
   onConfirmed?: (employers: EmployerRow[]) => void;
   demo?: boolean;
@@ -54,7 +58,7 @@ export function EmployerConfirmation({
       // Synthesize the confirmed list locally for the visibility step.
       const list: EmployerRow[] = [
         ...rows,
-        ...added.map((a, i) => ({ id: `local-${i}`, name: a.name, domain: a.domain || null, is_current: a.is_current, tenure: null })),
+        ...added.map((a, i) => ({ id: `local-${i}`, name: a.name, title: null, domain: a.domain || null, is_current: a.is_current, tenure: null })),
       ];
       setDone(true);
       onConfirmed?.(list);
@@ -106,7 +110,7 @@ export function EmployerConfirmation({
                 <span className="ml-2 rounded-full bg-clay-soft px-2.5 py-0.5 text-xs font-semibold text-clay">current</span>
               )}
               <div className="text-sm text-n2">
-                {[e.tenure, e.domain].filter(Boolean).join(" · ") || "—"}
+                {[e.title, e.tenure, e.domain].filter(Boolean).join(" · ") || "—"}
               </div>
             </div>
             <button
@@ -139,6 +143,17 @@ export function EmployerConfirmation({
           </li>
         ))}
       </ul>
+
+      {education.length > 0 && (
+        <div className="mb-4 rounded-lg border border-n4 bg-white p-4">
+          <p className="mb-2 text-sm font-semibold">Education <span className="font-normal text-n2">(shown on your profile, not hidden)</span></p>
+          <ul className="space-y-1 text-[15px]">
+            {education.map((s, i) => (
+              <li key={i} className="text-ink">{s}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="mb-6 rounded-lg border border-n4 bg-white p-4">
         <p className="mb-3 text-sm font-semibold">Add a company we missed</p>

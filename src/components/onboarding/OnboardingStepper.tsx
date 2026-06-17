@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { EmployerConfirmation, type EmployerRow } from "./EmployerConfirmation";
-import { DEMO_PARSED_EMPLOYERS } from "@/lib/demo";
+import { DEMO_PARSED_EMPLOYERS, DEMO_EDUCATION } from "@/lib/demo";
 import { CTC_BANDS, BAND_LABEL, type CtcBand } from "@/lib/bands";
 import { uploadResume, runParse, savePreferences, setVisibility, publishProfile } from "@/lib/candidate/actions";
 
@@ -59,6 +59,7 @@ export function OnboardingStepper({ demo }: { demo: boolean }) {
   // real upload → parse (signed-in mode)
   const [file, setFile] = useState<File | null>(null);
   const [realEmployers, setRealEmployers] = useState<EmployerRow[]>([]);
+  const [realEducation, setRealEducation] = useState<string[]>([]);
   const [uploadBusy, startUpload] = useTransition();
   const [uploadError, setUploadError] = useState<string | null>(null);
 
@@ -82,6 +83,7 @@ export function OnboardingStepper({ demo }: { demo: boolean }) {
         return;
       }
       setRealEmployers(parsed.data!.employers);
+      setRealEducation(parsed.data!.education);
       next();
     });
   }
@@ -187,6 +189,7 @@ export function OnboardingStepper({ demo }: { demo: boolean }) {
       {step === 1 && (
         <EmployerConfirmation
           parsedEmployers={demo ? DEMO_PARSED_EMPLOYERS : realEmployers}
+          education={demo ? DEMO_EDUCATION : realEducation}
           demo={demo}
           embedded
           onConfirmed={(emps) => {
@@ -276,7 +279,9 @@ export function OnboardingStepper({ demo }: { demo: boolean }) {
                   <label key={e.id} className="flex items-center gap-2 text-[15px]">
                     <input type="checkbox" checked={revealed.includes(e.id)} onChange={() => setRevealed((a) => toggle(a, e.id))} />
                     {e.name}
-                    {e.tenure && <span className="text-sm text-n2">· {e.tenure}</span>}
+                    {(e.title || e.tenure) && (
+                      <span className="text-sm text-n2">· {[e.title, e.tenure].filter(Boolean).join(" · ")}</span>
+                    )}
                     {e.is_current && <span className="rounded-full bg-clay-soft px-2 py-0.5 text-xs font-semibold text-clay">current</span>}
                   </label>
                 ))}
