@@ -55,6 +55,7 @@ function coerceEmployers(v: unknown): ParsedEmployer[] {
       name,
       domain: typeof o.domain === "string" && o.domain.trim() ? o.domain.trim().toLowerCase() : null,
       is_current: o.is_current === true,
+      tenure: typeof o.tenure === "string" && o.tenure.trim() ? o.tenure.trim() : null,
     });
   }
   return out.slice(0, 50);

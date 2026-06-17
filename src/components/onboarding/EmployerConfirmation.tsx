@@ -8,11 +8,12 @@ export interface EmployerRow {
   name: string;
   domain: string | null;
   is_current: boolean;
+  tenure: string | null;
 }
 
 // The fail-closed safety step (Phase 2.3 / design review): the candidate must SEE the
-// employer list and explicitly confirm it before publishing. A missed employer = the
-// at-risk candidate's employer can find them, so this screen carries real visual weight.
+// employer list and explicitly confirm it before publishing. They can remove anything
+// that isn't an employer (e.g. a school) and add anything we missed.
 export function EmployerConfirmation({
   parsedEmployers,
   onConfirmed,
@@ -20,12 +21,13 @@ export function EmployerConfirmation({
   embedded = false,
 }: {
   parsedEmployers: EmployerRow[];
-  onConfirmed?: () => void;
-  /** When true (no DB), skip the server action and just advance. */
+  /** Receives the canonical confirmed list (with stable ids) for the visibility step. */
+  onConfirmed?: (employers: EmployerRow[]) => void;
   demo?: boolean;
-  /** When embedded in the stepper, suppress the standalone success screen. */
   embedded?: boolean;
 }) {
+  const [rows, setRows] = useState<EmployerRow[]>(parsedEmployers);
+  const [removedIds, setRemovedIds] = useState<string[]>([]);
   const [added, setAdded] = useState<{ name: string; domain: string; is_current: boolean }[]>([]);
   const [draft, setDraft] = useState({ name: "", domain: "", is_current: false });
   const [attested, setAttested] = useState(false);
@@ -33,7 +35,7 @@ export function EmployerConfirmation({
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
-  const total = parsedEmployers.length + added.length;
+  const total = rows.length + added.length;
 
   function addEmployer() {
     if (!draft.name.trim()) return;
@@ -41,20 +43,31 @@ export function EmployerConfirmation({
     setDraft({ name: "", domain: "", is_current: false });
   }
 
+  function removeRow(id: string) {
+    setRows((r) => r.filter((x) => x.id !== id));
+    setRemovedIds((ids) => [...ids, id]);
+  }
+
   function submit() {
     setError(null);
     if (demo) {
+      // Synthesize the confirmed list locally for the visibility step.
+      const list: EmployerRow[] = [
+        ...rows,
+        ...added.map((a, i) => ({ id: `local-${i}`, name: a.name, domain: a.domain || null, is_current: a.is_current, tenure: null })),
+      ];
       setDone(true);
-      onConfirmed?.();
+      onConfirmed?.(list);
       return;
     }
     startTransition(async () => {
-      const res = await confirmEmployers({ addedEmployers: added });
-      if (!res.ok) setError(res.error);
-      else {
-        setDone(true);
-        onConfirmed?.();
+      const res = await confirmEmployers({ addedEmployers: added, removedIds });
+      if (!res.ok) {
+        setError(res.error);
+        return;
       }
+      setDone(true);
+      onConfirmed?.(res.data!.employers);
     });
   }
 
@@ -63,10 +76,7 @@ export function EmployerConfirmation({
       <section className="mx-auto max-w-[640px]">
         <span className="text-xs font-semibold uppercase tracking-[0.08em] text-sage">Saved</span>
         <h2 className="mb-2 mt-3 text-3xl">Your blocklist is set</h2>
-        <p className="text-n1">
-          Those companies will never see your profile. Next: set your preferences and choose
-          how visible you want to be.
-        </p>
+        <p className="text-n1">Those companies will never see your profile. Next: preferences and visibility.</p>
       </section>
     );
   }
@@ -77,42 +87,55 @@ export function EmployerConfirmation({
       <h2 className="mb-2 mt-3 text-3xl">Confirm who we&apos;ll hide you from</h2>
       <p className="mb-5 text-n1">
         These are the companies that will never see your profile — not in search, not in
-        counts, not even by a direct link. If we missed any employer, add them now. This is
-        the one step we can&apos;t let you skip.
+        counts, not even by a direct link. Remove anything that isn&apos;t an employer, add
+        any we missed. This is the one step we can&apos;t let you skip.
       </p>
 
       <ul className="mb-4 divide-y divide-n4 rounded-lg border border-n4 bg-white">
         {total === 0 && (
           <li className="px-4 py-5 text-n1">
-            We couldn&apos;t read any employers automatically. Add every company you&apos;ve
-            worked at below — especially your current one.
+            No employers yet. Add every company you&apos;ve worked at below — especially your
+            current one.
           </li>
         )}
-        {parsedEmployers.map((e) => (
-          <li key={e.id} className="flex items-center justify-between px-4 py-3">
-            <span className="font-medium">
-              {e.name}
+        {rows.map((e) => (
+          <li key={e.id} className="flex items-center justify-between gap-3 px-4 py-3">
+            <div className="min-w-0">
+              <span className="font-medium">{e.name}</span>
               {e.is_current && (
-                <span className="ml-2 rounded-full bg-clay-soft px-2.5 py-0.5 text-xs font-semibold text-clay">
-                  current
-                </span>
+                <span className="ml-2 rounded-full bg-clay-soft px-2.5 py-0.5 text-xs font-semibold text-clay">current</span>
               )}
-            </span>
-            {e.domain && <span className="text-sm text-n2">{e.domain}</span>}
+              <div className="text-sm text-n2">
+                {[e.tenure, e.domain].filter(Boolean).join(" · ") || "—"}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => removeRow(e.id)}
+              aria-label={`Remove ${e.name}`}
+              className="shrink-0 rounded-md px-2 py-1 text-sm font-semibold text-n2 hover:text-error"
+            >
+              Remove
+            </button>
           </li>
         ))}
         {added.map((e, i) => (
-          <li key={`added-${i}`} className="flex items-center justify-between px-4 py-3">
-            <span className="font-medium">
-              {e.name}
+          <li key={`added-${i}`} className="flex items-center justify-between gap-3 px-4 py-3">
+            <div className="min-w-0">
+              <span className="font-medium">{e.name}</span>
               {e.is_current && (
-                <span className="ml-2 rounded-full bg-clay-soft px-2.5 py-0.5 text-xs font-semibold text-clay">
-                  current
-                </span>
+                <span className="ml-2 rounded-full bg-clay-soft px-2.5 py-0.5 text-xs font-semibold text-clay">current</span>
               )}
-              <span className="ml-2 text-xs text-n2">added by you</span>
-            </span>
-            {e.domain && <span className="text-sm text-n2">{e.domain}</span>}
+              <div className="text-sm text-n2">{[e.domain, "added by you"].filter(Boolean).join(" · ")}</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setAdded((a) => a.filter((_, j) => j !== i))}
+              aria-label={`Remove ${e.name}`}
+              className="shrink-0 rounded-md px-2 py-1 text-sm font-semibold text-n2 hover:text-error"
+            >
+              Remove
+            </button>
           </li>
         ))}
       </ul>
@@ -134,18 +157,10 @@ export function EmployerConfirmation({
           />
         </div>
         <label className="mt-3 flex items-center gap-2 text-sm text-n1">
-          <input
-            type="checkbox"
-            checked={draft.is_current}
-            onChange={(e) => setDraft({ ...draft, is_current: e.target.checked })}
-          />
+          <input type="checkbox" checked={draft.is_current} onChange={(e) => setDraft({ ...draft, is_current: e.target.checked })} />
           This is my current employer
         </label>
-        <button
-          type="button"
-          onClick={addEmployer}
-          className="mt-3 rounded-md border border-n3 px-4 py-2 text-sm font-semibold"
-        >
+        <button type="button" onClick={addEmployer} className="mt-3 rounded-md border border-n3 px-4 py-2 text-sm font-semibold">
           Add company
         </button>
       </div>

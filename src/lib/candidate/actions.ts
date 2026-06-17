@@ -68,7 +68,7 @@ export async function uploadResume(formData: FormData): Promise<Result<{ resumeI
 
 // 2.2 — extract text + parse + persist. On any failure, leaves the candidate in a
 // "manual entry" state (never a half-parsed publish). Returns whether manual is required.
-type ParsedEmployerRow = { id: string; name: string; domain: string | null; is_current: boolean };
+type ParsedEmployerRow = { id: string; name: string; domain: string | null; is_current: boolean; tenure: string | null };
 
 export async function runParse(
   resumeId: string,
@@ -134,13 +134,14 @@ export async function runParse(
           name: e.name,
           domain: e.domain,
           is_current: e.is_current,
+          tenure: e.tenure,
           display_order: i,
           from_parse: true,
           confirmed: false,
           reveal_flag: false,
         })),
       )
-      .select("id, name, domain, is_current");
+      .select("id, name, domain, is_current, tenure");
     employers = (inserted ?? []) as ParsedEmployerRow[];
   }
 
@@ -154,14 +155,22 @@ export async function runParse(
   };
 }
 
-// 2.3 — the fail-closed employer confirmation. Adds any candidate-supplied employers,
-// marks the list confirmed, and auto-blocks every confirmed employer.
+// 2.3 — the fail-closed employer confirmation. Removes any the candidate deselected,
+// adds any they supplied, marks the list confirmed, auto-blocks every confirmed employer,
+// and returns the canonical confirmed list (with stable ids) for the visibility step.
 export async function confirmEmployers(input: {
   addedEmployers: { name: string; domain?: string; is_current: boolean }[];
-}): Promise<Result> {
+  removedIds?: string[];
+}): Promise<Result<{ employers: ParsedEmployerRow[] }>> {
   const cand = await ensureCandidate();
   if (!cand) return { ok: false, error: "Not signed in." };
   const supabase = await createClient();
+
+  // Remove deselected employers (candidate's choice — e.g. a school or a company they
+  // don't want shielded). RLS scopes deletes to the candidate's own rows.
+  if (input.removedIds?.length) {
+    await supabase.from("candidate_employer").delete().eq("candidate_id", cand.id).in("id", input.removedIds);
+  }
 
   if (input.addedEmployers.length) {
     await supabase.from("candidate_employer").insert(
@@ -178,16 +187,17 @@ export async function confirmEmployers(input: {
     );
   }
 
-  // Confirm the whole list (the un-skippable "these are the companies we hide you from").
+  // Confirm the whole remaining list (the un-skippable "companies we hide you from").
   await supabase.from("candidate_employer").update({ confirmed: true }).eq("candidate_id", cand.id);
 
-  // Auto-block every confirmed employer (candidate can later unblock old ones).
   const { data: employers } = await supabase
     .from("candidate_employer")
-    .select("id, name, domain")
+    .select("id, name, domain, is_current, tenure")
     .eq("candidate_id", cand.id)
-    .eq("confirmed", true);
+    .eq("confirmed", true)
+    .order("display_order");
 
+  // Auto-block every confirmed employer (candidate can later unblock old ones).
   if (employers?.length) {
     await supabase.from("blocklist").delete().eq("candidate_id", cand.id).eq("source", "auto_history");
     await supabase.from("blocklist").insert(
@@ -201,7 +211,7 @@ export async function confirmEmployers(input: {
     );
   }
 
-  return { ok: true };
+  return { ok: true, data: { employers: (employers ?? []) as ParsedEmployerRow[] } };
 }
 
 // 2.4 — preferences

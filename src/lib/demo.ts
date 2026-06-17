@@ -9,6 +9,7 @@ export interface DemoEmployer {
   name: string;
   domain: string | null;
   is_current: boolean;
+  tenure: string | null;
 }
 
 export interface DemoCard {
@@ -34,9 +35,9 @@ export interface DemoRequest {
 }
 
 export const DEMO_PARSED_EMPLOYERS: DemoEmployer[] = [
-  { id: "d1", name: "Razorpay", domain: "razorpay.com", is_current: true },
-  { id: "d2", name: "Flipkart", domain: "flipkart.com", is_current: false },
-  { id: "d3", name: "Freshworks", domain: "freshworks.com", is_current: false },
+  { id: "d1", name: "Razorpay", domain: "razorpay.com", is_current: true, tenure: "Mar 2023 – Current" },
+  { id: "d2", name: "Flipkart", domain: "flipkart.com", is_current: false, tenure: "2020 – 2023" },
+  { id: "d3", name: "Freshworks", domain: "freshworks.com", is_current: false, tenure: "2018 – 2020" },
 ];
 
 export const DEMO_CARDS: DemoCard[] = [

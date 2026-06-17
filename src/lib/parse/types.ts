@@ -6,6 +6,8 @@ export interface ParsedEmployer {
   name: string;
   domain: string | null;
   is_current: boolean;
+  /** Human-readable tenure, e.g. "Jul 2025 – Current" or "2019 – 2021". */
+  tenure: string | null;
 }
 
 export interface ParsedResume {

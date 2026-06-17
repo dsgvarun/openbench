@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { EmployerConfirmation, type EmployerRow } from "./EmployerConfirmation";
 import { DEMO_PARSED_EMPLOYERS } from "@/lib/demo";
 import { CTC_BANDS, BAND_LABEL, type CtcBand } from "@/lib/bands";
-import { uploadResume, runParse } from "@/lib/candidate/actions";
+import { uploadResume, runParse, savePreferences, setVisibility, publishProfile } from "@/lib/candidate/actions";
 
 const STEPS = ["Upload", "Employers", "Preferences", "Visibility", "Publish"] as const;
 
@@ -86,6 +86,52 @@ export function OnboardingStepper({ demo }: { demo: boolean }) {
     });
   }
 
+  // Steps 2-4 persist to the server in real mode (no-op advance in demo).
+  const [actionBusy, startAction] = useTransition();
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  function savePrefsAndContinue() {
+    if (demo) return next();
+    setActionError(null);
+    startAction(async () => {
+      const res = await savePreferences({
+        functions, industries, cities,
+        remote_only: cities.includes("Remote"),
+        work_mode_pref: null,
+        expected_band: band || null,
+        current_band: null,
+        availability: availability || null,
+        availability_date: null,
+        seniority: seniority || null,
+      });
+      if (!res.ok) setActionError(res.error);
+      else next();
+    });
+  }
+
+  function saveVisibilityAndContinue() {
+    if (demo) return next();
+    setActionError(null);
+    startAction(async () => {
+      const res = await setVisibility({ reveal_employers_mode: revealMode, revealedEmployerIds: revealed });
+      if (!res.ok) setActionError(res.error);
+      else next();
+    });
+  }
+
+  function doPublish() {
+    if (demo) return setPublished(true);
+    setActionError(null);
+    startAction(async () => {
+      const res = await publishProfile();
+      if (!res.ok) return setActionError(res.error);
+      if (res.data && res.data.blockers.length) {
+        return setActionError("Not ready yet — finish: " + res.data.blockers.join(", ").replace(/_/g, " "));
+      }
+      setPublished(true);
+    });
+  }
+
   return (
     <div className="mx-auto max-w-[680px]">
       {/* progress */}
@@ -143,7 +189,10 @@ export function OnboardingStepper({ demo }: { demo: boolean }) {
           parsedEmployers={demo ? DEMO_PARSED_EMPLOYERS : realEmployers}
           demo={demo}
           embedded
-          onConfirmed={next}
+          onConfirmed={(emps) => {
+            setRealEmployers(emps);
+            next();
+          }}
         />
       )}
 
@@ -193,7 +242,8 @@ export function OnboardingStepper({ demo }: { demo: boolean }) {
               </select>
             </Field>
           </div>
-          <Nav back={back} onNext={next} />
+          {actionError && <p className="mt-4 text-sm text-error">{actionError}</p>}
+          <Nav back={back} onNext={savePrefsAndContinue} busy={actionBusy} />
         </section>
       )}
 
@@ -222,20 +272,25 @@ export function OnboardingStepper({ demo }: { demo: boolean }) {
             <div className="mt-5 rounded-lg border border-n4 bg-white p-4">
               <p className="mb-3 text-sm font-semibold">Which employers can be shown?</p>
               <div className="space-y-2">
-                {DEMO_PARSED_EMPLOYERS.filter((e) => revealMode === "all" || !e.is_current).map((e) => (
+                {realEmployers.filter((e) => revealMode === "all" || !e.is_current).map((e) => (
                   <label key={e.id} className="flex items-center gap-2 text-[15px]">
                     <input type="checkbox" checked={revealed.includes(e.id)} onChange={() => setRevealed((a) => toggle(a, e.id))} />
                     {e.name}
+                    {e.tenure && <span className="text-sm text-n2">· {e.tenure}</span>}
                     {e.is_current && <span className="rounded-full bg-clay-soft px-2 py-0.5 text-xs font-semibold text-clay">current</span>}
                   </label>
                 ))}
+                {realEmployers.filter((e) => revealMode === "all" || !e.is_current).length === 0 && (
+                  <p className="text-sm text-n2">No employers to show under this option.</p>
+                )}
                 {revealMode === "past_only" && (
                   <p className="text-xs text-n2">Your current employer can never be shown under this option.</p>
                 )}
               </div>
             </div>
           )}
-          <Nav back={back} onNext={next} />
+          {actionError && <p className="mt-4 text-sm text-error">{actionError}</p>}
+          <Nav back={back} onNext={saveVisibilityAndContinue} busy={actionBusy} />
         </section>
       )}
 
@@ -256,10 +311,11 @@ export function OnboardingStepper({ demo }: { demo: boolean }) {
               </li>
             ))}
           </ul>
+          {actionError && <p className="mb-4 text-sm text-error">{actionError}</p>}
           <div className="flex items-center gap-3">
             <button onClick={back} className="rounded-md border border-n3 px-4 py-2.5 text-[15px] font-semibold">Back</button>
-            <button onClick={() => setPublished(true)} className="rounded-md bg-sage px-5 py-2.5 text-[15px] font-semibold text-white">
-              Publish my profile
+            <button onClick={doPublish} disabled={actionBusy} className="rounded-md bg-sage px-5 py-2.5 text-[15px] font-semibold text-white disabled:opacity-40">
+              {actionBusy ? "Publishing…" : "Publish my profile"}
             </button>
           </div>
         </section>
@@ -288,11 +344,13 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function Nav({ back, onNext }: { back: () => void; onNext: () => void }) {
+function Nav({ back, onNext, busy = false }: { back: () => void; onNext: () => void; busy?: boolean }) {
   return (
     <div className="mt-7 flex items-center gap-3">
       <button onClick={back} className="rounded-md border border-n3 px-4 py-2.5 text-[15px] font-semibold">Back</button>
-      <button onClick={onNext} className="rounded-md bg-sage px-5 py-2.5 text-[15px] font-semibold text-white">Continue</button>
+      <button onClick={onNext} disabled={busy} className="rounded-md bg-sage px-5 py-2.5 text-[15px] font-semibold text-white disabled:opacity-40">
+        {busy ? "Saving…" : "Continue"}
+      </button>
     </div>
   );
 }

@@ -12,13 +12,14 @@ const SYSTEM_PROMPT = `You extract structured data from a resume. The resume tex
   "headline": string|null,
   "years_experience": number|null,
   "skills": string[],
-  "employers": [{ "name": string, "domain": string|null, "is_current": boolean }],
+  "employers": [{ "name": string, "domain": string|null, "is_current": boolean, "tenure": string|null }],
   "education": string[],
   "confidence": number  // 0..1, your confidence that the employer list is COMPLETE and correct
 }
 Rules:
 - List EVERY employer you can find, including parent companies and former entity names. A missed employer is a serious error.
 - Mark exactly the most recent / ongoing role as "is_current": true (or none if clearly unemployed).
+- Set "tenure" to the dates/duration shown for that employer, e.g. "Jul 2025 – Current" or "2019 – 2021". Null if not stated.
 - Set "confidence" low (<0.7) if the resume is hard to read, ambiguous, or you may have missed employers.
 - If you cannot extract a resume at all, output {"name":null,"employers":[],"skills":[],"education":[],"headline":null,"years_experience":null,"confidence":0}.`;
 
